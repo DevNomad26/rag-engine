@@ -10,6 +10,8 @@ pinned: false
 
 # RAG Engine — Grounded Document Q&A with Hybrid Retrieval, Reranking & Evaluation
 
+**[Live Demo](https://huggingface.co/spaces/akashwadhvani07/rag-engine_)** · deployed on Hugging Face Spaces
+
 A production-style Retrieval-Augmented Generation system that answers questions over your documents with **grounded, cited answers** — built from primitives (no LangChain orchestration) so every layer is inspectable and tunable. Ships with a **hybrid retrieval pipeline**, **cross-encoder reranking**, and a **custom evaluation + observability layer** that measures retrieval quality and per-stage latency.
 
 > Most RAG projects stop at "it returns an answer." This one measures whether the answer is actually grounded, tracks where every millisecond goes, and proves each optimization with before/after metrics.
