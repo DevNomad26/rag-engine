@@ -10,7 +10,7 @@ pinned: false
 
 # RAG Engine — Grounded Document Q&A with Hybrid Retrieval, Reranking & Evaluation
 
-**[Live Demo](https://huggingface.co/spaces/akashwadhvani07/rag-engine_)** · deployed on Hugging Face Spaces
+🔗 **[Live Demo](https://huggingface.co/spaces/akashwadhvani07/rag-engine_)** · deployed on Hugging Face Spaces
 
 A production-style Retrieval-Augmented Generation system that answers questions over your documents with **grounded, cited answers** — built from primitives (no LangChain orchestration) so every layer is inspectable and tunable. Ships with a **hybrid retrieval pipeline**, **cross-encoder reranking**, and a **custom evaluation + observability layer** that measures retrieval quality and per-stage latency.
 
@@ -21,9 +21,8 @@ A production-style Retrieval-Augmented Generation system that answers questions 
 ## Demo
 
 ![Chat interface](docs/chat.png)
-![Dashboard](docs/dashboard.png)
 
-*(Add screenshots of the chat interface and the evaluation dashboard here.)*
+![Dashboard](docs/dashboard.png)
 
 ---
 
@@ -85,7 +84,7 @@ The system layers four techniques, each targeting a specific weakness of the pre
 
 **3. Reciprocal Rank Fusion (RRF)** — combines the dense and sparse rankings by *rank position* rather than raw score, sidestepping the problem that cosine similarity (0–1) and BM25 scores (unbounded) live on incomparable scales.
 
-**4. Cross-encoder reranking** — a `ms-marco-MiniLM` cross-encoder reads each (question, chunk) pair *together* and rescoring by true relevance, then keeps the top-k. This is what raised faithfulness and relevancy to a perfect score (see [Evaluation](#evaluation)).
+**4. Cross-encoder reranking** — a `ms-marco-MiniLM` cross-encoder reads each (question, chunk) pair *together* and rescores by true relevance, then keeps the top-k. This is what raised faithfulness and relevancy to a perfect score (see [Evaluation](#evaluation)).
 
 ---
 
@@ -94,7 +93,7 @@ The system layers four techniques, each targeting a specific weakness of the pre
 The pipeline includes an **optional query-transformation layer**, toggleable per request:
 
 - **Query expansion** — the LLM rewrites a short or vague user question into a keyword-rich retrieval query before searching, making intent explicit for the sparse (BM25) retriever.
-- **HyDE (Hypothetical Document Embeddings)** — instead of embedding the *question*, the LLM writes a hypothetical *answer passage*, and that is embedded for dense search. The insight: a hypothetical answer resembles real document chunks far more than a question does, so it retrieves closer matches.
+- **HyDE (Hypothetical Document Embeddings)** — instead of embedding the *question*, the LLM writes a hypothetical *answer passage*, and that is embedded for dense search. The insight: a hypothetical answer resembles real document chunks more than a question does, so it retrieves closer matches.
 
 Importantly, retrieval uses the rewritten query, but **reranking always scores against the original user question** — the rewrite helps *find* candidates; the reranker judges relevance to what was actually asked.
 
@@ -148,12 +147,13 @@ Per-stage latency tracing revealed that **retrieval was 49% of total response ti
 | Reranking        | `cross-encoder/ms-marco-MiniLM-L-6-v2` (local, CPU)     |
 | Frontend         | React + Vite                                            |
 | Evaluation       | Custom LLM-as-judge harness                             |
+| Deployment       | Docker on Hugging Face Spaces                           |
 
 **Provider-agnostic LLM layer:** generation and judging route through a single OpenAI-compatible client, so swapping providers is a two-line change. Embeddings stay on Gemini (generous free embedding quota); generation runs on Groq for speed and daily-limit headroom.
 
 ---
 
-## Getting started
+## Running locally
 
 ### Prerequisites
 - Python 3.12+
@@ -161,50 +161,65 @@ Per-stage latency tracing revealed that **retrieval was 49% of total response ti
 - A [Supabase](https://supabase.com) project with the `vector` extension enabled
 - Free API keys: [Google AI Studio](https://aistudio.google.com/apikey) (embeddings) and [Groq](https://console.groq.com) (generation)
 
-### Backend
+### 1. Clone and set up the backend
 
 ```bash
-# clone and enter
 git clone https://github.com/DevNomad26/rag-engine.git
 cd rag-engine
 
-# virtual environment
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 
-# dependencies
 pip install -r requirements.txt
+```
 
-# environment — create a .env file:
-cat > .env << 'EOF'
+Create a `.env` file in the project root:
+
+```
 GOOGLE_API_KEY=your_gemini_key
 GROQ_API_KEY=your_groq_key
 DATABASE_URL=your_supabase_session_pooler_url
-EOF
-
-# apply database migrations
-alembic upgrade head
-
-# run
-uvicorn main:app --reload
 ```
 
-Backend runs at `http://localhost:8000` — interactive API docs at `/docs`.
+Apply the database migrations:
 
-### Frontend
+```bash
+alembic upgrade head
+```
+
+### 2. Build the frontend
+
+The backend serves the built React app as static files, so the frontend must be built once:
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run build     # outputs to frontend/dist/
+cd ..
 ```
 
-Frontend runs at `http://localhost:5173` (proxies API calls to the backend).
+### 3. Run
+
+```bash
+uvicorn main:app --reload
+```
+
+Open **`http://localhost:8000`** — the full app (chat UI + dashboard) is served here.
+Interactive API docs are at **`http://localhost:8000/docs`**.
+All API routes are namespaced under `/api` (e.g. `/api/documents/ingest`, `/api/search/ask`, `/api/dashboard/stats`).
+
+> **Frontend development note:** to iterate on the React UI with hot-reload, run `npm run dev` in `frontend/` (serves on `http://localhost:5173` and proxies `/api` calls to the backend on port 8000). For normal use and deployment, the built frontend served by FastAPI on port 8000 is all you need.
 
 ### Usage
-1. Open the frontend, upload a PDF — it's extracted, chunked, embedded, and indexed.
-2. Ask questions in the Chat tab — get grounded answers with clickable source citations and a live latency/token trace.
-3. Open the Dashboard tab to see retrieval-strategy metrics and live observability stats.
+1. Open the app, upload a PDF — it's extracted, chunked, embedded, and indexed.
+2. Ask questions in the **Chat** tab — get grounded answers with clickable source citations and a live latency/token trace.
+3. Open the **Dashboard** tab to see retrieval-strategy metrics and live observability stats.
+
+---
+
+## Deployment
+
+Deployed on **Hugging Face Spaces** via Docker. The `Dockerfile` builds a single container that runs FastAPI (serving both the API and the pre-built frontend) on port 7860. API keys and the database URL are provided as Space **secrets** (`GOOGLE_API_KEY`, `GROQ_API_KEY`, `DATABASE_URL`) rather than committed to the repo.
 
 ---
 
@@ -221,7 +236,9 @@ rag-engine/
 ├── eval/               # LLM-as-judge evaluation harness + golden set
 ├── alembic/            # database migrations
 ├── frontend/           # React + Vite UI (chat + dashboard)
-└── main.py             # app entry point
+│   └── dist/           # built static frontend (served by FastAPI)
+├── Dockerfile          # container for Hugging Face Spaces deployment
+└── main.py             # app entry point (API + serves frontend)
 ```
 
 ---
@@ -236,7 +253,8 @@ rag-engine/
 
 ## Known limitations & future work
 
-- In-memory BM25 cache is per-process; a multi-instance deployment would need a shared index (Redis/persisted).
+- In-memory BM25 cache is per-process; a multi-instance deployment would need a shared index (Redis/persisted). On free-tier hosting that sleeps, the cache also resets on cold start.
 - Diagram *content* (not captions) is currently dropped; a multimodal pass (vision-model diagram description) would recover it.
 - Single-document focus; multi-document and cross-document querying are natural extensions.
 - Evaluation golden set is hand-curated and small; scaling it (auto-generation) would strengthen the metrics' statistical weight.
+- Multi-format ingestion (DOCX/Markdown/HTML) and automated tests + CI/CD are planned enhancements.
